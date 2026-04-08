@@ -7,6 +7,7 @@ import { Pin, ChatMessage } from '@/lib/types'
 import { getPin, deletePin, getThread, appendMessage } from '@/lib/pins'
 import { chatWithPin } from '@/lib/ai'
 import { TAG_COLORS, PLATFORM_LABELS } from '@/lib/ai'
+import SaveToBoardModal from '@/components/SaveToBoardModal'
 
 const QUICK_PROMPTS = [
   'Turn this into step-by-step instructions',
@@ -22,6 +23,7 @@ export default function PinDetailPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showSaveModal, setShowSaveModal] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -129,16 +131,28 @@ export default function PinDetailPage() {
               </div>
             )}
 
-            <a
-              href={pin.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              View original ↗
-            </a>
+            <div className="flex items-center justify-between pt-1">
+              <a
+                href={pin.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-700 transition-colors"
+              >
+                View original ↗
+              </a>
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="text-xs bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-1.5 rounded-full transition-colors"
+              >
+                Save to Board
+              </button>
+            </div>
           </div>
         </aside>
+
+        {showSaveModal && (
+          <SaveToBoardModal pinId={pin.id} onClose={() => setShowSaveModal(false)} />
+        )}
 
         {/* Right: Chat */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden min-h-[500px]">

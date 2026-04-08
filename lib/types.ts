@@ -26,3 +26,11 @@ export interface ChatThread {
   pinId: string
   messages: ChatMessage[]
 }
+
+export interface Board {
+  id: string
+  name: string
+  pinIds: string[]
+  createdAt: string
+  updatedAt: string
+}
