@@ -65,7 +65,7 @@ export default function HomePage() {
         {(['pins', 'boards'] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); if (t === 'boards') setBoards(getBoards()) }}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
               tab === t ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
             }`}
