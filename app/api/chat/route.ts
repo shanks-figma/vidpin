@@ -47,19 +47,23 @@ Answer questions based on this content. Be concise, practical, and format respon
       { role: 'user', parts: [{ text: userMessage }] },
     ]
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents }),
-      }
-    )
-
-    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
-
-    const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+    let text = ''
+    for (const model of models) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents }),
+        }
+      )
+      if (response.status === 503 || response.status === 429) continue
+      if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
+      const data = await response.json()
+      text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      if (text) break
+    }
     if (!text) throw new Error('No response from Gemini')
 
     return NextResponse.json({ response: text })
