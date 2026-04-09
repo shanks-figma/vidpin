@@ -41,6 +41,14 @@ export interface Reminder {
   createdAt: string
 }
 
+export interface PinTask {
+  id: string
+  pinId: string
+  prompt: string       // what the user asked for
+  output: string       // markdown output from Gemini
+  createdAt: string
+}
+
 export interface Board {
   id: string
   name: string
