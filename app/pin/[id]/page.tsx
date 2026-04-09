@@ -9,6 +9,9 @@ import { getPin, deletePin, getThread, appendMessage } from '@/lib/pins'
 import { chatWithPin } from '@/lib/ai'
 import { TAG_COLORS, PLATFORM_LABELS } from '@/lib/ai'
 import SaveToBoardModal from '@/components/SaveToBoardModal'
+import SetReminderModal from '@/components/SetReminderModal'
+import { getRemindersForPin, checkOverdueReminders } from '@/lib/reminders'
+import { Reminder } from '@/lib/types'
 
 const FALLBACK_PROMPTS = [
   'Turn this into step-by-step instructions',
@@ -26,6 +29,8 @@ export default function PinDetailPage() {
   const [loading, setLoading] = useState(false)
   const [webSearch, setWebSearch] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showReminderModal, setShowReminderModal] = useState(false)
+  const [reminders, setReminders] = useState<Reminder[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,6 +38,8 @@ export default function PinDetailPage() {
     if (!p) { router.replace('/'); return }
     setPin(p)
     setMessages(getThread(id).messages)
+    setReminders(getRemindersForPin(id))
+    checkOverdueReminders()
   }, [id, router])
 
   useEffect(() => {
@@ -81,6 +88,7 @@ export default function PinDetailPage() {
   if (!pin) return null
 
   return (
+    <>
     <div className="min-h-screen bg-[#f8f7f4] flex flex-col">
       {/* Nav */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
@@ -89,12 +97,28 @@ export default function PinDetailPage() {
             ← Back
           </Link>
           <span className="font-bold text-lg text-gray-900 tracking-tight">📌 VidPin</span>
-          <button
-            onClick={handleDelete}
-            className="text-sm text-red-400 hover:text-red-600 transition-colors"
-          >
-            Delete
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowReminderModal(true)}
+              className="relative text-gray-400 hover:text-gray-700 transition-colors"
+              title="Set reminder"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {reminders.filter(r => !r.fired).length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                  {reminders.filter(r => !r.fired).length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleDelete}
+              className="text-sm text-red-400 hover:text-red-600 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </header>
 
@@ -134,6 +158,21 @@ export default function PinDetailPage() {
               </div>
             )}
 
+            {/* Upcoming reminders */}
+            {reminders.filter(r => !r.fired).length > 0 && (
+              <div className="border-t border-gray-100 pt-3 space-y-1.5">
+                {reminders.filter(r => !r.fired).map(r => (
+                  <div key={r.id} className="flex items-start gap-2 text-xs text-gray-500">
+                    <span className="mt-0.5">🔔</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-700 truncate">{r.title}</p>
+                      <p className="text-gray-400">{new Date(r.scheduledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-1">
               <a
                 href={pin.url}
@@ -152,10 +191,6 @@ export default function PinDetailPage() {
             </div>
           </div>
         </aside>
-
-        {showSaveModal && (
-          <SaveToBoardModal pinId={pin.id} onClose={() => setShowSaveModal(false)} />
-        )}
 
         {/* Right: Chat */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden min-h-[500px]">
@@ -269,6 +304,20 @@ export default function PinDetailPage() {
         </div>
       </div>
     </div>
+
+    {showReminderModal && pin && (
+      <SetReminderModal
+        pinId={pin.id}
+        pinTitle={pin.title}
+        onClose={() => setShowReminderModal(false)}
+        onSaved={(r) => { setReminders((prev) => [...prev, r]); setShowReminderModal(false) }}
+      />
+    )}
+
+    {showSaveModal && pin && (
+      <SaveToBoardModal pinId={pin.id} onClose={() => setShowSaveModal(false)} />
+    )}
+    </>
   )
 }
 

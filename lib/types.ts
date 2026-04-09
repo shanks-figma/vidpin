@@ -30,6 +30,17 @@ export interface ChatThread {
   messages: ChatMessage[]
 }
 
+export interface Reminder {
+  id: string
+  pinId: string
+  pinTitle: string
+  title: string
+  description: string
+  scheduledAt: string  // ISO string
+  fired: boolean
+  createdAt: string
+}
+
 export interface Board {
   id: string
   name: string
