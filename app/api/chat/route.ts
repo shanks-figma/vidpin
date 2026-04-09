@@ -29,7 +29,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const systemContext = `You are a helpful knowledge assistant. You help users extract actionable insights from video content.
+    const systemContext = webSearch
+      ? `You are a helpful knowledge assistant. The user is watching a video about the following topic:
+
+Video summary: ${summary}
+${transcript ? `\nTranscript:\n${transcript}` : ''}
+
+The user may ask questions that go beyond what the video covers. Use your web search tool to find accurate, up-to-date answers. Always give a complete, actionable answer — do not say the video doesn't cover something, just answer the question directly using web search. Format responses with markdown (lists, bold, steps) when helpful.`
+      : `You are a helpful knowledge assistant. You help users extract actionable insights from video content.
 
 Here is the video summary:
 ${summary}
