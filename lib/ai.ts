@@ -34,19 +34,19 @@ export async function chatWithPin(
   summary: string,
   transcript: string | undefined,
   history: { role: string; content: string }[],
-  userMessage: string
-): Promise<string> {
+  userMessage: string,
+  webSearch = false
+): Promise<{ response: string; webSearch: boolean }> {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ summary, transcript, history, userMessage }),
+    body: JSON.stringify({ summary, transcript, history, userMessage, webSearch }),
   })
   if (!res.ok) {
     const err = await res.json()
     throw new Error(err.error || 'Failed to get response')
   }
-  const data = await res.json()
-  return data.response
+  return res.json()
 }
 
 export const TAG_COLORS: Record<TagType, string> = {

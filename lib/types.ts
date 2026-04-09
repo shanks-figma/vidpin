@@ -21,6 +21,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  webSearched?: boolean
 }
 
 export interface ChatThread {

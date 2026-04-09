@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  const { summary, transcript, history, userMessage } = await req.json()
+  const { summary, transcript, history, userMessage, webSearch } = await req.json()
 
   if (!userMessage) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -47,6 +47,11 @@ Answer questions based on this content. Be concise, practical, and format respon
       { role: 'user', parts: [{ text: userMessage }] },
     ]
 
+    const body: Record<string, unknown> = { contents }
+    if (webSearch) {
+      body.tools = [{ googleSearch: {} }]
+    }
+
     const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
     let text = ''
     for (const model of models) {
@@ -55,7 +60,7 @@ Answer questions based on this content. Be concise, practical, and format respon
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents }),
+          body: JSON.stringify(body),
         }
       )
       if (response.status === 503 || response.status === 429) continue
@@ -66,7 +71,7 @@ Answer questions based on this content. Be concise, practical, and format respon
     }
     if (!text) throw new Error('No response from Gemini')
 
-    return NextResponse.json({ response: text })
+    return NextResponse.json({ response: text, webSearch: !!webSearch })
   } catch (err) {
     console.error('Chat error:', err)
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 })

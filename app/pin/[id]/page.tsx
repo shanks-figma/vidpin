@@ -24,6 +24,7 @@ export default function PinDetailPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [webSearch, setWebSearch] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -47,13 +48,14 @@ export default function PinDetailPage() {
     appendMessage(pin.id, userMsg)
     setLoading(true)
     try {
-      const response = await chatWithPin(
+      const result = await chatWithPin(
         pin.summary,
         pin.transcript,
         messages.map((m) => ({ role: m.role, content: m.content })),
-        text.trim()
+        text.trim(),
+        webSearch
       )
-      const aiMsg: ChatMessage = { role: 'assistant', content: response, timestamp: new Date().toISOString() }
+      const aiMsg: ChatMessage = { role: 'assistant', content: result.response, webSearched: result.webSearch, timestamp: new Date().toISOString() }
       setMessages((prev) => [...prev, aiMsg])
       appendMessage(pin.id, aiMsg)
     } catch {
@@ -228,22 +230,41 @@ export default function PinDetailPage() {
           {/* Input */}
           <form
             onSubmit={(e) => { e.preventDefault(); send(input) }}
-            className="p-3 border-t border-gray-100 flex gap-2"
+            className="p-3 border-t border-gray-100 space-y-2"
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about this pin..."
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent placeholder:text-gray-400"
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              className="bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-            >
-              Send
-            </button>
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={webSearch ? 'Ask anything — searching the web too...' : 'Ask about this pin...'}
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent placeholder:text-gray-400"
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || loading}
+                className="bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+              >
+                ↑
+              </button>
+            </div>
+            <div className="flex items-center gap-2 px-1">
+              <button
+                type="button"
+                onClick={() => setWebSearch((v) => !v)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  webSearch
+                    ? 'bg-blue-50 border-blue-300 text-blue-600 font-medium'
+                    : 'bg-gray-50 border-gray-200 text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <span>🌐</span>
+                <span>Web search {webSearch ? 'on' : 'off'}</span>
+              </button>
+              {webSearch && (
+                <span className="text-xs text-gray-400">Answers pull from the web + video</span>
+              )}
+            </div>
           </form>
         </div>
       </div>
@@ -255,14 +276,21 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-          isUser
-            ? 'bg-red-500 text-white rounded-tr-sm whitespace-pre-wrap'
-            : 'bg-gray-100 text-gray-800 rounded-tl-sm'
-        }`}
-      >
-        {isUser ? message.content : <MarkdownContent content={message.content} />}
+      <div className="flex flex-col gap-1 max-w-[85%]">
+        <div
+          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            isUser
+              ? 'bg-red-500 text-white rounded-tr-sm whitespace-pre-wrap'
+              : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+          }`}
+        >
+          {isUser ? message.content : <MarkdownContent content={message.content} />}
+        </div>
+        {message.webSearched && (
+          <span className="text-xs text-blue-400 flex items-center gap-1 px-1">
+            🌐 <span>Searched the web</span>
+          </span>
+        )}
       </div>
     </div>
   )
