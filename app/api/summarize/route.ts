@@ -16,10 +16,11 @@ Respond with a JSON object (no markdown, no code blocks) with these exact fields
 - title: string (concise title, max 60 chars)
 - summary: string (2-3 sentences — a short tagline capturing the core value of the video, shown on the card)
 - breakdown: string (a rich markdown deep-dive shown in the chat. Use ## headings and bullet points. Include sections relevant to the video such as: Key Insights, Step-by-Step, Tools & Resources, Action Items, Notable Quotes. Minimum 150 words.)
+- quickPrompts: array of exactly 4 short follow-up questions a viewer would naturally ask about THIS specific video. Make them specific to the actual content — e.g. if it's a recipe, ask about substitutions or serving size; if it's a finance video, ask about specific strategies mentioned; if it's a workout, ask about difficulty or equipment. Each prompt max 8 words.
 - tags: array of 1-2 tags from this list only: ["recipe", "editing", "fitness", "ideas", "workflow", "pointer"]
 
 Example:
-{"title":"10 Morning Yoga Poses","summary":"A beginner-friendly 10-minute morning yoga flow focusing on gentle stretches and breathwork to energize the day.","breakdown":"## Key Insights\\n- Morning yoga activates the parasympathetic nervous system...\\n## Step-by-Step\\n1. Start in child's pose...\\n## Action Items\\n- [ ] Practice for 10 minutes each morning","tags":["fitness"]}`
+{"title":"10 Morning Yoga Poses","summary":"A beginner-friendly 10-minute morning yoga flow focusing on gentle stretches and breathwork to energize the day.","breakdown":"## Key Insights\\n- Morning yoga activates the parasympathetic nervous system...\\n## Step-by-Step\\n1. Start in child's pose...\\n## Action Items\\n- [ ] Practice for 10 minutes each morning","quickPrompts":["Can I do this with back pain?","How long until I see results?","What mat and props do I need?","Is there a harder version of this?"],"tags":["fitness"]}`
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ async function fetchThumbnailAsDataUrl(url: string): Promise<string> {
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
 
-async function callGemini(apiKey: string, parts: object[]): Promise<{ title: string; summary: string; breakdown: string; tags: TagType[] }> {
+async function callGemini(apiKey: string, parts: object[]): Promise<{ title: string; summary: string; breakdown: string; quickPrompts: string[]; tags: TagType[] }> {
   let lastError = ''
   for (const model of GEMINI_MODELS) {
     const res = await fetch(
@@ -122,7 +123,7 @@ async function summarizeYouTube(url: string, apiKey: string) {
     { text: GEMINI_PROMPT },
   ])
 
-  return { title: parsed.title || title, summary: parsed.summary, breakdown: parsed.breakdown, tags: parsed.tags, thumbnailData }
+  return { title: parsed.title || title, summary: parsed.summary, breakdown: parsed.breakdown, quickPrompts: parsed.quickPrompts, tags: parsed.tags, thumbnailData }
 }
 
 // ─── Non-YouTube path (uses yt-dlp, works locally) ──────────────────────────
@@ -199,7 +200,7 @@ async function summarizeWithYtdlp(url: string, apiKey: string) {
       { file_data: { mime_type: 'video/mp4', file_uri: fileUri } },
       { text: GEMINI_PROMPT },
     ])
-    return { title: parsed.title || metaTitle, summary: parsed.summary, breakdown: parsed.breakdown, tags: parsed.tags, thumbnailData }
+    return { title: parsed.title || metaTitle, summary: parsed.summary, breakdown: parsed.breakdown, quickPrompts: parsed.quickPrompts, tags: parsed.tags, thumbnailData }
   } finally {
     try { await unlink(tmpFile) } catch { /* ignore */ }
   }
@@ -226,7 +227,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    let result: { title: string; summary: string; breakdown: string; tags: TagType[]; thumbnailData: string }
+    let result: { title: string; summary: string; breakdown: string; quickPrompts: string[]; tags: TagType[]; thumbnailData: string }
 
     if (platform === 'youtube') {
       // Vercel-compatible: Gemini reads YouTube URLs natively
@@ -241,6 +242,7 @@ export async function POST(req: NextRequest) {
       title: result.title || 'Untitled',
       summary: result.summary || '',
       breakdown: result.breakdown || '',
+      quickPrompts: result.quickPrompts || [],
       thumbnailUrl: result.thumbnailData,
       sourcePlatform: platform,
       tags: result.tags || [],

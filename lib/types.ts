@@ -8,6 +8,7 @@ export interface Pin {
   title: string
   summary: string
   breakdown?: string
+  quickPrompts?: string[]
   transcript?: string
   thumbnailUrl: string
   sourcePlatform: PlatformType

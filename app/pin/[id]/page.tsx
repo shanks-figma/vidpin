@@ -10,7 +10,7 @@ import { chatWithPin } from '@/lib/ai'
 import { TAG_COLORS, PLATFORM_LABELS } from '@/lib/ai'
 import SaveToBoardModal from '@/components/SaveToBoardModal'
 
-const QUICK_PROMPTS = [
+const FALLBACK_PROMPTS = [
   'Turn this into step-by-step instructions',
   'What tools or resources are mentioned?',
   'Summarize in one sentence',
@@ -177,7 +177,7 @@ export default function PinDetailPage() {
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {QUICK_PROMPTS.map((p) => (
+                  {(pin.quickPrompts?.length ? pin.quickPrompts : FALLBACK_PROMPTS).map((p) => (
                     <button
                       key={p}
                       onClick={() => send(p)}
@@ -212,7 +212,7 @@ export default function PinDetailPage() {
           {/* Quick prompts (when there are messages) */}
           {messages.length > 0 && (
             <div className="px-4 py-2 border-t border-gray-50 flex gap-2 overflow-x-auto no-scrollbar">
-              {QUICK_PROMPTS.map((p) => (
+              {(pin.quickPrompts?.length ? pin.quickPrompts : FALLBACK_PROMPTS).map((p) => (
                 <button
                   key={p}
                   onClick={() => send(p)}
