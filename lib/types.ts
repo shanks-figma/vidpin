@@ -7,6 +7,7 @@ export interface Pin {
   url: string
   title: string
   summary: string
+  breakdown?: string
   transcript?: string
   thumbnailUrl: string
   sourcePlatform: PlatformType

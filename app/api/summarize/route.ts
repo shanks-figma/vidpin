@@ -10,15 +10,16 @@ const execAsync = promisify(exec)
 const YTDLP = '/opt/homebrew/bin/yt-dlp'
 const EXEC_ENV = { ...process.env, PATH: `/opt/homebrew/bin:${process.env.PATH}` }
 
-const GEMINI_PROMPT = `You are a knowledge extractor. Watch this video and provide a structured summary.
+const GEMINI_PROMPT = `You are a knowledge extractor. Watch this video and provide a structured response.
 
 Respond with a JSON object (no markdown, no code blocks) with these exact fields:
 - title: string (concise title, max 60 chars)
-- summary: string (2-3 sentences capturing the core knowledge, tips, or value of the video)
+- summary: string (2-3 sentences — a short tagline capturing the core value of the video, shown on the card)
+- breakdown: string (a rich markdown deep-dive shown in the chat. Use ## headings and bullet points. Include sections relevant to the video such as: Key Insights, Step-by-Step, Tools & Resources, Action Items, Notable Quotes. Minimum 150 words.)
 - tags: array of 1-2 tags from this list only: ["recipe", "editing", "fitness", "ideas", "workflow", "pointer"]
 
 Example:
-{"title":"10 Morning Yoga Poses for Beginners","summary":"A guided 10-minute morning yoga flow focusing on gentle stretches and breathwork to energize your day. The instructor demonstrates each pose with modifications for beginners.","tags":["fitness"]}`
+{"title":"10 Morning Yoga Poses","summary":"A beginner-friendly 10-minute morning yoga flow focusing on gentle stretches and breathwork to energize the day.","breakdown":"## Key Insights\\n- Morning yoga activates the parasympathetic nervous system...\\n## Step-by-Step\\n1. Start in child's pose...\\n## Action Items\\n- [ ] Practice for 10 minutes each morning","tags":["fitness"]}`
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ async function fetchThumbnailAsDataUrl(url: string): Promise<string> {
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
 
-async function callGemini(apiKey: string, parts: object[]): Promise<{ title: string; summary: string; tags: TagType[] }> {
+async function callGemini(apiKey: string, parts: object[]): Promise<{ title: string; summary: string; breakdown: string; tags: TagType[] }> {
   let lastError = ''
   for (const model of GEMINI_MODELS) {
     const res = await fetch(
@@ -121,7 +122,7 @@ async function summarizeYouTube(url: string, apiKey: string) {
     { text: GEMINI_PROMPT },
   ])
 
-  return { title: parsed.title || title, summary: parsed.summary, tags: parsed.tags, thumbnailData }
+  return { title: parsed.title || title, summary: parsed.summary, breakdown: parsed.breakdown, tags: parsed.tags, thumbnailData }
 }
 
 // ─── Non-YouTube path (uses yt-dlp, works locally) ──────────────────────────
@@ -198,7 +199,7 @@ async function summarizeWithYtdlp(url: string, apiKey: string) {
       { file_data: { mime_type: 'video/mp4', file_uri: fileUri } },
       { text: GEMINI_PROMPT },
     ])
-    return { title: parsed.title || metaTitle, summary: parsed.summary, tags: parsed.tags, thumbnailData }
+    return { title: parsed.title || metaTitle, summary: parsed.summary, breakdown: parsed.breakdown, tags: parsed.tags, thumbnailData }
   } finally {
     try { await unlink(tmpFile) } catch { /* ignore */ }
   }
@@ -225,7 +226,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    let result: { title: string; summary: string; tags: TagType[]; thumbnailData: string }
+    let result: { title: string; summary: string; breakdown: string; tags: TagType[]; thumbnailData: string }
 
     if (platform === 'youtube') {
       // Vercel-compatible: Gemini reads YouTube URLs natively
@@ -239,6 +240,7 @@ export async function POST(req: NextRequest) {
       url,
       title: result.title || 'Untitled',
       summary: result.summary || '',
+      breakdown: result.breakdown || '',
       thumbnailUrl: result.thumbnailData,
       sourcePlatform: platform,
       tags: result.tags || [],

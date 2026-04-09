@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { Pin, ChatMessage } from '@/lib/types'
 import { getPin, deletePin, getThread, appendMessage } from '@/lib/pins'
 import { chatWithPin } from '@/lib/ai'
@@ -162,11 +163,19 @@ export default function PinDetailPage() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Breakdown — always shown if available */}
+            {pin.breakdown && (
+              <BreakdownBubble breakdown={pin.breakdown} />
+            )}
+
+            {/* Empty state or messages */}
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center gap-4 py-8">
-                <p className="text-sm text-gray-400 text-center">
-                  Ask anything about this video — steps, tools, recipes, summaries...
-                </p>
+              <div className={`flex flex-col items-center gap-3 py-4 ${pin.breakdown ? '' : 'h-full justify-center'}`}>
+                {!pin.breakdown && (
+                  <p className="text-sm text-gray-400 text-center">
+                    Ask anything about this video — steps, tools, recipes, summaries...
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2 justify-center">
                   {QUICK_PROMPTS.map((p) => (
                     <button
@@ -247,14 +256,45 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
           isUser
-            ? 'bg-red-500 text-white rounded-tr-sm'
+            ? 'bg-red-500 text-white rounded-tr-sm whitespace-pre-wrap'
             : 'bg-gray-100 text-gray-800 rounded-tl-sm'
         }`}
       >
-        {message.content}
+        {isUser ? message.content : <MarkdownContent content={message.content} />}
       </div>
     </div>
+  )
+}
+
+function BreakdownBubble({ breakdown }: { breakdown: string }) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[92%] bg-gray-100 text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+        <MarkdownContent content={breakdown} />
+      </div>
+    </div>
+  )
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        h2: ({ children }) => <h2 className="font-bold text-gray-900 text-sm mt-3 mb-1 first:mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="font-semibold text-gray-800 text-sm mt-2 mb-1">{children}</h3>,
+        ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 my-1">{children}</ol>,
+        li: ({ children }) => <li className="text-gray-700">{children}</li>,
+        p: ({ children }) => <p className="my-1">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{children}</a>,
+        code: ({ children }) => <code className="bg-gray-200 text-gray-800 rounded px-1 text-xs font-mono">{children}</code>,
+        blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-3 italic text-gray-600 my-1">{children}</blockquote>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   )
 }
