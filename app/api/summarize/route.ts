@@ -176,6 +176,61 @@ async function waitForFileActive(apiKey: string, fileUri: string): Promise<void>
   throw new Error('File processing timed out')
 }
 
+// ─── OG tag scraper (Vercel fallback for non-YouTube) ───────────────────────
+
+async function scrapeOgTags(url: string): Promise<{ title: string; description: string; thumbnailUrl: string }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      },
+    })
+    const html = await res.text()
+    const get = (prop: string) => {
+      const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))
+        || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'))
+      return m?.[1] || ''
+    }
+    return {
+      title: get('og:title') || get('twitter:title') || '',
+      description: get('og:description') || get('twitter:description') || '',
+      thumbnailUrl: get('og:image') || get('twitter:image') || '',
+    }
+  } catch {
+    return { title: '', description: '', thumbnailUrl: '' }
+  }
+}
+
+const GEMINI_PROMPT_TEXT = `You are a knowledge extractor. Based on the video metadata below, provide a structured response.
+
+Respond with a JSON object (no markdown, no code blocks) with these exact fields:
+- title: string (concise title, max 60 chars — use the provided title if good)
+- summary: string (2-3 sentences — a short tagline capturing the core value of the video)
+- breakdown: string (a rich markdown deep-dive. Use ## headings and bullet points. Include: Key Insights, Key Topics, Action Items. Note that this is based on page metadata, not the full video.)
+- quickPrompts: array of exactly 4 short follow-up questions specific to this content. Max 8 words each.
+- tags: array of 1-2 tags from: ["recipe", "editing", "fitness", "ideas", "workflow", "pointer"]`
+
+async function summarizeFromOgTags(url: string, apiKey: string) {
+  const og = await scrapeOgTags(url)
+  const thumbnailData = og.thumbnailUrl ? await fetchThumbnailAsDataUrl(og.thumbnailUrl) : ''
+
+  const textPrompt = `${GEMINI_PROMPT_TEXT}
+
+Video URL: ${url}
+Title: ${og.title || '(not found)'}
+Description: ${og.description || '(not found)'}`
+
+  const parsed = await callGemini(apiKey, [{ text: textPrompt }])
+  return {
+    title: parsed.title || og.title || 'Untitled',
+    summary: parsed.summary,
+    breakdown: parsed.breakdown,
+    quickPrompts: parsed.quickPrompts,
+    tags: parsed.tags,
+    thumbnailData,
+  }
+}
+
 async function summarizeWithYtdlp(url: string, apiKey: string) {
   // Metadata
   const { stdout } = await execAsync(
@@ -233,8 +288,18 @@ export async function POST(req: NextRequest) {
       // Vercel-compatible: Gemini reads YouTube URLs natively
       result = await summarizeYouTube(url, apiKey)
     } else {
-      // Local only: requires yt-dlp
-      result = await summarizeWithYtdlp(url, apiKey)
+      // Try yt-dlp first (local dev), fall back to OG scraping (Vercel/prod)
+      try {
+        result = await summarizeWithYtdlp(url, apiKey)
+      } catch (ytdlpErr) {
+        const msg = ytdlpErr instanceof Error ? ytdlpErr.message : ''
+        if (msg.includes('No such file') || msg.includes('not found') || msg.includes('ENOENT')) {
+          // yt-dlp not available (Vercel) — fall back to OG tag scraping
+          result = await summarizeFromOgTags(url, apiKey)
+        } else {
+          throw ytdlpErr
+        }
+      }
     }
 
     return NextResponse.json({
