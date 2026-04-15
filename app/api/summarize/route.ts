@@ -45,17 +45,32 @@ function extractYouTubeId(url: string): string | null {
   return null
 }
 
-async function fetchThumbnailAsDataUrl(url: string): Promise<string> {
+function platformPlaceholder(platform: PlatformType): string {
+  const configs: Record<PlatformType, { bg: string; label: string }> = {
+    instagram: { bg: '#E1306C', label: 'Instagram' },
+    tiktok:    { bg: '#010101', label: 'TikTok' },
+    youtube:   { bg: '#FF0000', label: 'YouTube' },
+    other:     { bg: '#6B7280', label: 'Video' },
+  }
+  const { bg, label } = configs[platform]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="${bg}"/><text x="320" y="180" font-family="system-ui,sans-serif" font-size="28" font-weight="600" fill="white" text-anchor="middle" dominant-baseline="middle">${label}</text></svg>`
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+}
+
+async function fetchThumbnailAsDataUrl(url: string, platform: PlatformType = 'other'): Promise<string> {
+  if (!url) return platformPlaceholder(platform)
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
     })
-    if (!res.ok) return url
+    if (!res.ok) return platformPlaceholder(platform)
+    const ct = res.headers.get('content-type') || ''
+    // If it's not an image (e.g. redirect to login page), use placeholder
+    if (!ct.startsWith('image/')) return platformPlaceholder(platform)
     const buf = await res.arrayBuffer()
-    const ct = res.headers.get('content-type') || 'image/jpeg'
     return `data:${ct};base64,${Buffer.from(buf).toString('base64')}`
   } catch {
-    return url
+    return platformPlaceholder(platform)
   }
 }
 
@@ -115,7 +130,7 @@ async function summarizeYouTube(url: string, apiKey: string) {
     }
   } catch { /* fall through */ }
 
-  const thumbnailData = await fetchThumbnailAsDataUrl(thumbnailUrl)
+  const thumbnailData = await fetchThumbnailAsDataUrl(thumbnailUrl, 'youtube')
 
   // 2. Pass YouTube URL directly to Gemini (no download needed)
   const parsed = await callGemini(apiKey, [
@@ -210,9 +225,9 @@ Respond with a JSON object (no markdown, no code blocks) with these exact fields
 - quickPrompts: array of exactly 4 short follow-up questions specific to this content. Max 8 words each.
 - tags: array of 1-2 tags from: ["recipe", "editing", "fitness", "ideas", "workflow", "pointer"]`
 
-async function summarizeFromOgTags(url: string, apiKey: string) {
+async function summarizeFromOgTags(url: string, apiKey: string, platform: PlatformType = 'other') {
   const og = await scrapeOgTags(url)
-  const thumbnailData = og.thumbnailUrl ? await fetchThumbnailAsDataUrl(og.thumbnailUrl) : ''
+  const thumbnailData = await fetchThumbnailAsDataUrl(og.thumbnailUrl, platform)
 
   const textPrompt = `${GEMINI_PROMPT_TEXT}
 
@@ -231,7 +246,7 @@ Description: ${og.description || '(not found)'}`
   }
 }
 
-async function summarizeWithYtdlp(url: string, apiKey: string) {
+async function summarizeWithYtdlp(url: string, apiKey: string, platform: PlatformType = 'other') {
   // Metadata
   const { stdout } = await execAsync(
     `${YTDLP} --no-playlist -j --no-warnings "${url}"`,
@@ -240,7 +255,7 @@ async function summarizeWithYtdlp(url: string, apiKey: string) {
   const meta = JSON.parse(stdout)
   const metaTitle = (meta.title as string) || ''
   const rawThumb = (meta.thumbnail as string) || ''
-  const thumbnailData = rawThumb ? await fetchThumbnailAsDataUrl(rawThumb) : ''
+  const thumbnailData = await fetchThumbnailAsDataUrl(rawThumb, platform)
 
   // Download
   const tmpFile = join(tmpdir(), `vidpin_${Date.now()}.mp4`)
@@ -290,12 +305,12 @@ export async function POST(req: NextRequest) {
     } else {
       // Try yt-dlp first (local dev), fall back to OG scraping (Vercel/prod)
       try {
-        result = await summarizeWithYtdlp(url, apiKey)
+        result = await summarizeWithYtdlp(url, apiKey, platform)
       } catch (ytdlpErr) {
         const msg = ytdlpErr instanceof Error ? ytdlpErr.message : ''
         if (msg.includes('No such file') || msg.includes('not found') || msg.includes('ENOENT')) {
           // yt-dlp not available (Vercel) — fall back to OG tag scraping
-          result = await summarizeFromOgTags(url, apiKey)
+          result = await summarizeFromOgTags(url, apiKey, platform)
         } else {
           throw ytdlpErr
         }
