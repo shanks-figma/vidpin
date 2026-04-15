@@ -227,7 +227,10 @@ Respond with a JSON object (no markdown, no code blocks) with these exact fields
 
 async function summarizeFromOgTags(url: string, apiKey: string, platform: PlatformType = 'other') {
   const og = await scrapeOgTags(url)
-  const thumbnailData = await fetchThumbnailAsDataUrl(og.thumbnailUrl, platform)
+  // Use the raw CDN URL directly — let the browser load it rather than
+  // fetching server-side (Instagram/TikTok CDNs block server fetches).
+  // Fall back to a platform placeholder only if no URL at all.
+  const thumbnailData = og.thumbnailUrl || platformPlaceholder(platform)
 
   const textPrompt = `${GEMINI_PROMPT_TEXT}
 
